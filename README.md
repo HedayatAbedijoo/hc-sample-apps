@@ -1,2 +1,2 @@
 # hc-test-app
-This project is just for testing Holochain functionalities. Nothing special. 
+This project is just for testing and practicing Holochain functionalities. Nothing special. 
