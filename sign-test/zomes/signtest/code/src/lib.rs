@@ -76,19 +76,14 @@ mod sign_zome {
         Ok(address)
     }
 
-    #[zome_fn("hc_public")]
-    fn get_entry(address: Address) -> ZomeApiResult<Option<Entry>> {
-        hdk::get_entry(&address)
-    }
+    // #[zome_fn("hc_public")]
+    // fn get_entry(address: Address) -> ZomeApiResult<Option<Entry>> {
+    //     hdk::get_entry(&address)
+    // }
 
     #[zome_fn("hc_public")]
     pub fn get_agent_address() -> ZomeApiResult<Address> {
         Ok(AGENT_ADDRESS.to_string().into())
-    }
-
-    #[zome_fn("hc_public")]
-    pub fn is_public_entry_signed_by_me(entry_address: Address) -> ZomeApiResult<bool> {
-        is_signed_by_me(entry_address)
     }
 
     #[zome_fn("hc_public")]
@@ -101,16 +96,45 @@ mod sign_zome {
         Ok(address.address())
     }
 
-    pub fn is_signed_by_me(entry_address: Address) -> ZomeApiResult<bool> {
+    #[zome_fn("hc_public")]
+    pub fn get_entry(entry_address: Address) -> ZomeApiResult<String> {
+        let option =
+            GetEntryOptions::new(StatusRequestKind::Latest, true, true, Timeout::default());
+
+        let entry_result = hdk::get_entry_result(&entry_address, option)?;
+        Ok(JsonString::from(entry_result).to_string())
+    }
+
+    #[zome_fn("hc_public")]
+    pub fn get_provinence(entry_address: Address) -> ZomeApiResult<String> {
         let signature = hdk::sign(entry_address.clone())?;
         let provenance = Provenance::new(AGENT_ADDRESS.clone(), Signature::from(signature));
-        let validate_signature = hdk::verify_signature(provenance.clone(), entry_address.clone())?;
-        if !validate_signature {
-            return Err(ZomeApiError::from(String::from(
-                "Error: You did not sign this entry",
-            )));
-        } else {
-            Ok(true)
-        }
+        return Ok(JsonString::from(provenance).to_string());
     }
+    #[zome_fn("hc_public")]
+    pub fn is_signed_by_me(entry_address: Address) -> ZomeApiResult<bool> {
+        let option =
+            GetEntryOptions::new(StatusRequestKind::Latest, true, true, Timeout::default());
+
+        let entry_result = hdk::get_entry_result(&entry_address, option)?;
+        let signature = hdk::sign(entry_address.clone())?;
+        let my_provenance = Provenance::new(AGENT_ADDRESS.clone(), Signature::from(signature));
+
+        if let GetEntryResultType::Single(item) = entry_result.result {
+            for header in item.headers {
+                for i in header.provenances().iter() {
+                    if JsonString::from(i).to_string()
+                        == JsonString::from(&my_provenance).to_string()
+                    {
+                        return Ok(true);
+                    }
+                }
+            }
+            return Ok(false);
+        }
+
+        return Ok(false);
+    }
+
+    // TODO:: GET MY Signature
 }

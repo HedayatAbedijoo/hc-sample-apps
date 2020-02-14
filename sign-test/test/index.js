@@ -46,6 +46,19 @@ const conductorConfig = Config.gen(
 );
 
 
+
+async function _call(caller, fnName, params, logTest) {
+  console.log("<<<<<<<<<<<<<<<  " + logTest + "  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+  const result = await caller.call(
+    dna_name,
+    zome_name,
+    fnName,
+    params
+  );
+  return result;
+  console.log("<End>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+}
+
 async function show_entry(caller, address, title) {
   console.log("<<<<<<<<<<<<<<<  " + title + "  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
   const result =
@@ -59,6 +72,10 @@ async function show_entry(caller, address, title) {
   console.log("<End>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 }
 
+
+
+
+
 async function call_function(caller, fn_name, title) {
   console.log("<<<<<<<<<<<<<<<  " + title + "  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
   const result =
@@ -66,62 +83,41 @@ async function call_function(caller, fn_name, title) {
     });
 
   //console.log(title);
+  console.log("<End>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
   console.log(result);
+}
+function _logstart(title) {
+  console.log("<<<<<<<<<<<<<<<  " + title + "  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+}
+function _logend() {
   console.log("<End>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 }
-
 orchestrator.registerScenario("Scenario1", async (s, t) => {
   const { alice, bob } = await s.players(
     { alice: conductorConfig, bob: conductorConfig },
     true
   );
 
-
   await call_function(alice, "get_agent_address", "Agent-address-Alice");
   await call_function(bob, "get_agent_address", "Agent-address-Bob");
+  const pub_adrr = await _call(alice, "create", { title: "First entry" }, "Alice Create Etnry")
+  console.log(pub_adrr.Ok);
 
-  const pub_adrr = await alice.call(
-    dna_name,
-    zome_name,
-    "create",
-    {
-      title: "First entry"
-    }
-  );
-  t.ok(pub_adrr.Ok);
-  await s.consistency();
+  await _call(alice, "get_provinence", { entry_address: pub_adrr.Ok }, "Alice Provinenece");
+  await _call(bob, "get_provinence", { entry_address: pub_adrr.Ok }, "Bob Provinenece");
 
-  await show_entry(alice, pub_adrr.Ok, "Alice_First Entry Created");
-  await s.consistency();
+  await show_entry(alice, { entry_address: pub_adrr.Ok }, "Alice getting entry");
+  await show_entry(bob, { entry_address: pub_adrr.Ok }, "Bob getting entry");
 
-  //// Alice signed the entry?
-  const alive_did_sign = await alice.call(
-    dna_name,
-    zome_name,
-    "is_public_entry_signed_by_me",
-    {
-      entry_address: pub_adrr.Ok,
-    }
-  );
-  console.log(alive_did_sign);
-  t.true(alive_did_sign.Ok == true); // he created the entry so it should be true
+  const alice_signed = await _call(alice, "is_signed_by_me", { entry_address: pub_adrr.Ok }, "Alice signed the entry?");
+  t.true(alice_signed.Ok == true); // Yes because he is the creator of entry
+  const bob_signed = await _call(bob, "is_signed_by_me", { entry_address: pub_adrr.Ok }, "Bob signed the entry?");
+  t.true(bob_signed.Ok == false);
 
-  await s.consistency();
+  await _call(bob, "sign_entry", { entry_address: pub_adrr.Ok }, "Bob wants to sign the etnry");
 
-
-  //// Bob signed the entry?
-  const bob_did_sign = await bob.call(
-    dna_name,
-    zome_name,
-    "is_public_entry_signed_by_me",
-    {
-      entry_address: pub_adrr.Ok,
-    }
-  );
-  console.log(bob_did_sign);
-  t.true(bob_did_sign.Ok == false); // it should be false because he did not sign the entry  ::: TODO: Error
-
-  await s.consistency();
+  const recheck_bob_signed = await _call(bob, "is_signed_by_me", { entry_address: pub_adrr.Ok }, "Bob signed the entry?");
+  t.true(bob_signed.Ok == true);
 
 });
 
