@@ -87,19 +87,29 @@ mod sign_zome {
     }
 
     #[zome_fn("hc_public")]
-    pub fn sign_entry(entry_address: Address) -> ZomeApiResult<Address> {
-        let entry = hdk::get_entry(&entry_address).unwrap().unwrap();
+    pub fn sign_entry(
+        entry_address: Address,
+        signer_address: Address,
+        signature: String,
+    ) -> ZomeApiResult<Address> {
+        let provenance = Provenance::new(signer_address.clone(), Signature::from(signature));
+        let valid = hdk::verify_signature(provenance.clone(), entry_address.clone())?;
+
+        if !valid {
+            return Err(ZomeApiError::from(String::from("Signature not valid")));
+        }
+
         let signature = hdk::sign(entry_address.clone())?;
         let my_provenance = Provenance::new(AGENT_ADDRESS.clone(), Signature::from(signature));
-        let options = CommitEntryOptions::new(vec![my_provenance]);
+        let options = CommitEntryOptions::new(vec![provenance, my_provenance]);
+        let entry = hdk::get_entry(&entry_address).unwrap().unwrap();
         let address = hdk::commit_entry_result(&entry, options)?;
         Ok(address.address())
     }
 
     #[zome_fn("hc_public")]
     pub fn get_entry(entry_address: Address) -> ZomeApiResult<String> {
-        let option =
-            GetEntryOptions::new(StatusRequestKind::Latest, true, true, Timeout::default());
+        let option = GetEntryOptions::new(StatusRequestKind::All, true, true, Timeout::default());
 
         let entry_result = hdk::get_entry_result(&entry_address, option)?;
         Ok(JsonString::from(entry_result).to_string())
@@ -111,6 +121,13 @@ mod sign_zome {
         let provenance = Provenance::new(AGENT_ADDRESS.clone(), Signature::from(signature));
         return Ok(JsonString::from(provenance).to_string());
     }
+
+    #[zome_fn("hc_public")]
+    pub fn get_signature(entry_address: Address) -> ZomeApiResult<String> {
+        let signature = hdk::sign(entry_address.clone())?;
+        return Ok(signature);
+    }
+
     #[zome_fn("hc_public")]
     pub fn is_signed_by_me(entry_address: Address) -> ZomeApiResult<bool> {
         let option =
@@ -135,6 +152,4 @@ mod sign_zome {
 
         return Ok(false);
     }
-
-    // TODO:: GET MY Signature
 }

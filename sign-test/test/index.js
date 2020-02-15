@@ -55,6 +55,7 @@ async function _call(caller, fnName, params, logTest) {
     fnName,
     params
   );
+  console.log(result);
   return result;
   console.log("<End>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 }
@@ -63,8 +64,7 @@ async function show_entry(caller, address, title) {
   console.log("<<<<<<<<<<<<<<<  " + title + "  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
   const result =
     await caller.call(dna_name, zome_name, "get_entry", {
-      address: address
-
+      entry_address: address
     });
 
   //console.log(title);
@@ -98,26 +98,58 @@ orchestrator.registerScenario("Scenario1", async (s, t) => {
     true
   );
 
-  await call_function(alice, "get_agent_address", "Agent-address-Alice");
-  await call_function(bob, "get_agent_address", "Agent-address-Bob");
+  //await call_function(alice, "get_agent_address", "Agent-address-Alice");
+  //await s.consistency();
+
+  //await call_function(bob, "get_agent_address", "Agent-address-Bob");
+  //await s.consistency();
+
   const pub_adrr = await _call(alice, "create", { title: "First entry" }, "Alice Create Etnry")
   console.log(pub_adrr.Ok);
+  await s.consistency();
 
-  await _call(alice, "get_provinence", { entry_address: pub_adrr.Ok }, "Alice Provinenece");
-  await _call(bob, "get_provinence", { entry_address: pub_adrr.Ok }, "Bob Provinenece");
 
-  await show_entry(alice, { entry_address: pub_adrr.Ok }, "Alice getting entry");
-  await show_entry(bob, { entry_address: pub_adrr.Ok }, "Bob getting entry");
+  await _call(alice, "get_provinence", { entry_address: pub_adrr.Ok }, "Get Alice Provinenece");
+  await s.consistency();
+
+  await _call(bob, "get_provinence", { entry_address: pub_adrr.Ok }, "Get Bob Provinenece");
+  await s.consistency();
+
+  await show_entry(alice, pub_adrr.Ok, "Again get-entry");
+  await s.consistency();
+
+  await show_entry(bob, pub_adrr.Ok, "Bob get-entry");
+  await s.consistency();
 
   const alice_signed = await _call(alice, "is_signed_by_me", { entry_address: pub_adrr.Ok }, "Alice signed the entry?");
   t.true(alice_signed.Ok == true); // Yes because he is the creator of entry
+  await s.consistency();
+
   const bob_signed = await _call(bob, "is_signed_by_me", { entry_address: pub_adrr.Ok }, "Bob signed the entry?");
   t.true(bob_signed.Ok == false);
+  await s.consistency();
 
-  await _call(bob, "sign_entry", { entry_address: pub_adrr.Ok }, "Bob wants to sign the etnry");
+
+  // Bob wants to sign the entry
+  const bob_signature = await bob.call(dna_name, zome_name, "get_signature", { entry_address: pub_adrr.Ok });
+  await s.consistency();
+  console.log("Get Bob Signature for public entry");
+  console.log(bob_signature.Ok);
+
+  // Sending Signature of Bob to Alice. Alice adding this signature to entry.
+  const bobAddress = bob.instance(dna_name).agentAddress;
+  await _call(alice, "sign_entry", { entry_address: pub_adrr.Ok, signer_address: bobAddress, signature: bob_signature.Ok }, "Bob wants to sign the etnry");
+  await s.consistency();
+
+
 
   const recheck_bob_signed = await _call(bob, "is_signed_by_me", { entry_address: pub_adrr.Ok }, "Bob signed the entry?");
-  t.true(bob_signed.Ok == true);
+  t.true(bob_signed.Ok == true); // TODO: it should be true. But? why not?
+  await s.consistency();
+
+  await show_entry(alice, pub_adrr.Ok, "Again Alice get-entry");
+  await show_entry(bob, pub_adrr.Ok, "Again Bob get-entry");
+
 
 });
 
